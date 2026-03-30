@@ -5,8 +5,9 @@ from flask import Flask, render_template, request, jsonify
 from sklearn.decomposition import PCA
 
 # Import existing backend
-from data_loader import load_data, min_max_scaler
+from data_loader import load_data, min_max_scaler, train_test_split
 from knn_model import KNN_Classifier
+from main import calculate_metrics
 
 app = Flask(__name__, template_folder='../templates')
 
@@ -19,9 +20,10 @@ m_avg_scaled, b_avg_scaled = None, None
 pca_model = None
 X_pca = None
 corr_matrix = None
+global_metrics = None
 
 def init_system():
-    global X_raw, y, X_scaled, min_vals, max_vals, model, m_avg_scaled, b_avg_scaled, pca_model, X_pca, corr_matrix
+    global X_raw, y, X_scaled, min_vals, max_vals, model, m_avg_scaled, b_avg_scaled, pca_model, X_pca, corr_matrix, global_metrics
     try:
         data_path = os.path.join(os.path.dirname(__file__), '..', 'data.csv')
         X_raw, y = load_data(data_path)
@@ -30,7 +32,15 @@ def init_system():
         
         X_scaled = min_max_scaler(X_raw)
         model = KNN_Classifier(k=5)
-        model.fit(X_scaled, y)
+        model.fit(X_scaled, y) # Huấn luyện toàn bộ dữ liệu để dự đoán thực tế được tốt nhất
+
+        # --- EVALUATION FOR METRICS ---
+        # Splitting to evaluate accuracy independently
+        X_train_eval, X_test_eval, y_train_eval, y_test_eval = train_test_split(X_scaled, y, test_size=0.2, random_seed=42)
+        eval_model = KNN_Classifier(k=5)
+        eval_model.fit(X_train_eval, y_train_eval)
+        y_pred_eval, _ = eval_model.predict(X_test_eval)
+        global_metrics = calculate_metrics(y_test_eval, y_pred_eval)
         
         m_avg_scaled = (np.mean(X_raw[y == 1], axis=0) - min_vals) / (max_vals - min_vals + 1e-9)
         b_avg_scaled = (np.mean(X_raw[y == 0], axis=0) - min_vals) / (max_vals - min_vals + 1e-9)
@@ -87,7 +97,8 @@ def index():
                            feature_names=feature_names, 
                            min_vals=min_v,
                            max_vals=max_v,
-                           default_vals=default_vals)
+                           default_vals=default_vals,
+                           metrics=global_metrics)
 
 @app.route('/predict', methods=['POST'])
 def predict():

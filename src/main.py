@@ -1,9 +1,14 @@
+import sys
 import numpy as np
+
+# Thiết lập encoding UTF-8 để in tiếng Việt ra terminal không bị lỗi trên Windows
+sys.stdout.reconfigure(encoding='utf-8')
+
 from data_loader import load_data, min_max_scaler, train_test_split
 from knn_model import KNN_Classifier
 
 def calculate_metrics(y_true, y_pred):
-    """
+    """D
     Tự code hàm tính toán các chỉ số đánh giá (Từ ma trận nhầm lẫn - Confusion Matrix)
     1: Ác tính (Malignant) - Positive
     0: Lành tính (Benign) - Negative
@@ -24,11 +29,11 @@ def calculate_metrics(y_true, y_pred):
     f1_score = 2 * (precision * recall) / (precision + recall + 1e-9)
 
     return {
-        "Accuracy": accuracy,
-        "Precision": precision,
-        "Recall": recall,
-        "F1-Score": f1_score,
-        "Confusion Matrix": {"TP": TP, "TN": TN, "FP": FP, "FN": FN}
+        "Accuracy": float(accuracy),
+        "Precision": float(precision),
+        "Recall": float(recall),
+        "F1-Score": float(f1_score),
+        "Confusion Matrix": {"TP": int(TP), "TN": int(TN), "FP": int(FP), "FN": int(FN)}
     }
 
 def run_evaluation():
@@ -49,7 +54,7 @@ def run_evaluation():
     model.fit(X_train, y_train)
     
     print("5. Đang dự đoán trên tập Test...")
-    y_pred = model.predict(X_test)
+    y_pred, _ = model.predict(X_test)
     
     print("\n--- KẾT QUẢ ĐÁNH GIÁ MÔ HÌNH ---")
     results = calculate_metrics(y_test, y_pred)
