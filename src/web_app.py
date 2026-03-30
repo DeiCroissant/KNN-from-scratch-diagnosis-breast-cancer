@@ -9,7 +9,11 @@ from data_loader import load_data, min_max_scaler, train_test_split
 from knn_model import KNN_Classifier
 from main import calculate_metrics
 
-app = Flask(__name__, template_folder='../templates')
+current_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(current_dir)
+
+template_dir = os.path.join(root_dir, 'templates')
+app = Flask(__name__, template_folder=template_dir)
 
 # --- INITIALIZE SYSTEM ---
 X_raw, y = None, None
