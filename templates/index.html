@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clinical Architect AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Phosphor Icons or FontAwesome equivalent for free -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#b81120', // the dark red
+                        primaryLight: '#f6d2d2',
+                        benign: '#006d41', // the green
+                        benignLight: '#d2f6e3',
+                        sidebarBg: '#f8f9fa',
+                        cardOutline: '#e2e8f0',
+                        textMain: '#1e293b',
+                        textMuted: '#64748b'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #fcfcfc; }
+        
+        /* Custom range slider styling */
+        .custom-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+            outline: none;
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+        .custom-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #b81120;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            border: 2px solid white;
+        }
+        .custom-slider::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #e2e8f0;
+            border-radius: 2px;
+        }
+
+        .scroll-hidden::-webkit-scrollbar {
+            width: 4px;
+        }
+        .scroll-hidden::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="text-textMain h-screen overflow-hidden flex">
+
+    <!-- SIDEBAR -->
+    <div class="w-80 h-full bg-sidebarBg border-r border-cardOutline flex flex-col shadow-sm z-10 flex-shrink-0">
+        
+        <!-- Header -->
+        <div class="p-6 pb-4 border-b border-cardOutline">
+            <div class="flex items-center gap-3">
+                <i class="ph-fill ph-file-text text-3xl text-primary"></i>
+                <div>
+                    <h1 class="font-black text-xl leading-tight">Clinical Architect<br>AI</h1>
+                </div>
+            </div>
+            <p class="text-[10px] font-bold tracking-widest text-textMuted mt-3 uppercase">V1.0.4 Precision Engine</p>
+        </div>
+
+        <!-- Scrollable Sliders -->
+        <div class="flex-1 overflow-y-auto scroll-hidden p-4" id="indicators-container">
+            <!-- Mean Indicators Accordion -->
+            <div class="mb-4">
+                <button class="w-full flex items-center justify-between text-xs font-bold text-primary bg-[#f4e2e3] px-3 py-2 rounded-t border-l-4 border-primary">
+                    <div class="flex items-center gap-2">
+                        <i class="ph ph-chart-bar text-lg"></i>
+                        <span>MEAN INDICATORS</span>
+                    </div>
+                    <i class="ph ph-caret-down"></i>
+                </button>
+                <div class="bg-white border text-xs text-textMuted border-cardOutline border-t-0 rounded-b p-4 space-y-5" id="mean-sliders">
+                    <!-- Sliders injected by JS -->
+                </div>
+            </div>
+
+            <!-- SE Indicators -->
+            <div class="mb-4">
+                <button class="w-full flex items-center justify-between text-xs font-bold text-textMain px-3 py-2 border-b border-cardOutline hover:bg-gray-100 transition">
+                    <div class="flex items-center gap-2">
+                        <i class="ph ph-activity text-lg"></i>
+                        <span>SE INDICATORS</span>
+                    </div>
+                    <i class="ph ph-caret-right"></i>
+                </button>
+            </div>
+
+            <!-- Worst Indicators -->
+            <div class="mb-4">
+                <button class="w-full flex items-center justify-between text-xs font-bold text-textMain px-3 py-2 border-b border-cardOutline hover:bg-gray-100 transition">
+                    <div class="flex items-center gap-2">
+                        <i class="ph ph-warning text-lg"></i>
+                        <span>WORST INDICATORS</span>
+                    </div>
+                    <i class="ph ph-caret-right"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Predict Button -->
+        <div class="p-4 border-t border-cardOutline bg-white">
+            <button onclick="predict()" class="w-full bg-[#cb3e47] hover:bg-primary transition text-white font-bold py-3 rounded text-sm tracking-wide shadow-md">
+                PREDICT DIAGNOSIS
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="flex-1 h-full overflow-y-auto bg-white flex flex-col">
+        
+        <div class="p-8 max-w-6xl mx-auto w-full flex-1 flex flex-col">
+            
+            <!-- Result Banner (Hidden by default) -->
+            <div id="result-banner" class="hidden mb-8 border-l-8 pl-4 pr-6 py-4 rounded shadow-sm relative overflow-hidden" style="background-color: #fbeded; border-color: #b81120;">
+                <div class="flex gap-4 items-start relative z-10">
+                    <div id="result-icon-bg" class="bg-primary text-white p-2 rounded shrink-0">
+                        <i id="result-icon" class="ph-bold ph-asterisk text-2xl"></i>
+                    </div>
+                    <div>
+                        <h2 id="result-title" class="text-primary font-black text-xl uppercase mb-1 tracking-tight">MALIGNANT TUMOR DETECTED</h2>
+                        <p id="result-desc" class="text-primary font-medium text-sm">Critical patient profile matches aggressive pathological markers. Immediate clinical intervention recommended.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pre-predict placeholder -->
+            <div id="placeholder" class="flex-1 flex flex-col items-center justify-center text-center opacity-50">
+                <i class="ph ph-waveform text-6xl text-textMuted mb-4"></i>
+                <h3 class="text-2xl font-bold text-textMuted">Awaiting Patient Profile</h3>
+                <p class="text-sm mt-2 text-textMuted max-w-md">Adjust the clinical parameters on the left and click 'Predict Diagnosis' to run the KNN classification.</p>
+            </div>
+
+            <!-- Content Area (Hidden by default) -->
+            <div id="dashboard-content" class="hidden flex-col flex-1">
+                
+                <!-- Radar Chart Section -->
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-xs font-bold uppercase tracking-widest text-[#5c687d]">Tumor Morphology Profile Comparison</h3>
+                    <span class="text-[10px] text-textMuted font-medium uppercase">Unit: Normalized Scaling (0-1)</span>
+                </div>
+                
+                <div class="border border-cardOutline bg-white rounded shadow-sm flex-1 flex flex-col relative p-4 mb-4">
+                    <div class="flex-1 relative flex items-center justify-center min-h-[300px]">
+                        <canvas id="radarChart"></canvas>
+                    </div>
+                    
+                    <!-- Chart Legend -->
+                    <div class="flex items-center justify-center gap-6 mt-4 text-xs font-bold text-[#5c687d]">
+                        <div class="flex items-center gap-2">
+                            <div class="w-4 h-4 bg-primary rounded-sm"></div>
+                            <span>CURRENT PATIENT (<span id="legend-label">MALIGNANT</span>)</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-4 h-0 border-t-2 border-dashed border-[#dca6a4]"></div>
+                            <span>MALIGNANT AVG.</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-4 h-4 bg-[#cbd5e1] rounded-sm"></div>
+                            <span>BENIGN AVG.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Nearest Neighbors Cards -->
+                <div class="grid grid-cols-3 gap-6">
+                    <!-- Card 1 -->
+                    <div class="border border-cardOutline p-5 rounded shadow-sm bg-white hover:border-[#cbd5e1] transition">
+                        <p class="text-[10px] font-black uppercase text-textMuted tracking-wider">Neighbor #1</p>
+                        <h4 id="n1-dist" class="text-3xl font-black mt-1 mb-2">0.000</h4>
+                        <div class="flex items-center gap-1 text-[10px] uppercase font-bold text-textMuted">
+                            <i class="ph ph-folder-open"></i> RELATIVE DISTANCE
+                        </div>
+                        <div id="n1-label" class="mt-3 text-xs font-bold pl-2 border-l-2"></div>
+                    </div>
+                    <!-- Card 2 -->
+                    <div class="border border-cardOutline p-5 rounded shadow-sm bg-white hover:border-[#cbd5e1] transition">
+                        <p class="text-[10px] font-black uppercase text-textMuted tracking-wider">Neighbor #2</p>
+                        <h4 id="n2-dist" class="text-3xl font-black mt-1 mb-2">0.000</h4>
+                        <div class="flex items-center gap-1 text-[10px] uppercase font-bold text-textMuted">
+                            <i class="ph ph-folder-open"></i> RELATIVE DISTANCE
+                        </div>
+                        <div id="n2-label" class="mt-3 text-xs font-bold pl-2 border-l-2"></div>
+                    </div>
+                    <!-- Card 3 -->
+                    <div class="border border-cardOutline p-5 rounded shadow-sm bg-white hover:border-[#cbd5e1] transition">
+                        <p class="text-[10px] font-black uppercase text-textMuted tracking-wider">Neighbor #3</p>
+                        <h4 id="n3-dist" class="text-3xl font-black mt-1 mb-2">0.000</h4>
+                        <div class="flex items-center gap-1 text-[10px] uppercase font-bold text-textMuted">
+                            <i class="ph ph-folder-open"></i> RELATIVE DISTANCE
+                        </div>
+                        <div id="n3-label" class="mt-3 text-xs font-bold pl-2 border-l-2"></div>
+                    </div>
+                </div>
+                
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Data injected from Flask
+        const featureNames = {{ feature_names | safe }};
+        const minVals = {{ min_vals | safe }};
+        const maxVals = {{ max_vals | safe }};
+        const defaultVals = {{ default_vals | safe }};
+        
+        let chartInstance = null;
+
+        // Populate sliders (Only doing the first 5 "Mean" ones for exact match visually, but underlying we'll send all 30)
+        // Or we show first 5 features but keep all 30 sliders conceptually (will just build Mean for the demo UI)
+        function initInterface() {
+            const container = document.getElementById('mean-sliders');
+            // Show only first 5 for the UI presentation to match image exactly (Radius, Texture, Perimeter, Area, Smoothness)
+            for(let i = 0; i < 5; i++) {
+                const step = (maxVals[i] - minVals[i]) / 100;
+                const html = `
+                    <div class="slider-group">
+                        <label class="block uppercase font-bold tracking-wider mb-1">${featureNames[i]} MEAN</label>
+                        <input type="range" id="feat-${i}" class="custom-slider" 
+                               min="${minVals[i]}" max="${maxVals[i]}" step="${step}" value="${defaultVals[i]}">
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', html);
+            }
+        }
+
+        // Gather all 30 features (we will fake the ones not shown using the defaults to keep the model working)
+        function getFeatures() {
+            let features = [...defaultVals];
+            // Override first 5 with slider values
+            for(let i=0; i<5; i++) {
+                let el = document.getElementById(`feat-${i}`);
+                if(el) {
+                    features[i] = parseFloat(el.value);
+                }
+            }
+            return features;
+        }
+
+        async function predict() {
+            const btn = document.querySelector('button[onclick="predict()"]');
+            btn.innerHTML = '<i class="ph ph-spinner animate-spin"></i> ANALYZING...';
+            
+            const features = getFeatures();
+            
+            try {
+                const res = await fetch('/predict', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({features})
+                });
+                const data = await res.json();
+                
+                updateUI(data);
+                
+            } catch(e) {
+                alert("Error calling prediction endpoint.");
+                console.error(e);
+            }
+            
+            btn.innerHTML = 'PREDICT DIAGNOSIS';
+        }
+
+        function updateUI(data) {
+            document.getElementById('placeholder').classList.add('hidden');
+            document.getElementById('dashboard-content').classList.remove('hidden');
+            const banner = document.getElementById('result-banner');
+            banner.classList.remove('hidden');
+
+            const isMalignant = data.prediction === 1;
+            
+            // Update Banner
+            if(isMalignant) {
+                banner.style.backgroundColor = '#fbeded';
+                banner.style.borderColor = '#b81120';
+                document.getElementById('result-icon-bg').className = 'bg-primary text-white p-2 rounded shrink-0';
+                document.getElementById('result-icon').className = 'ph-bold ph-asterisk text-2xl';
+                document.getElementById('result-title').className = 'text-primary font-black text-xl uppercase mb-1 tracking-tight';
+                document.getElementById('result-title').innerText = 'MALIGNANT TUMOR DETECTED';
+                document.getElementById('result-desc').className = 'text-primary font-medium text-sm';
+                document.getElementById('result-desc').innerText = 'Critical patient profile matches aggressive pathological markers. Immediate clinical intervention recommended.';
+                document.getElementById('legend-label').innerText = 'MALIGNANT';
+            } else {
+                banner.style.backgroundColor = '#eefdf4';
+                banner.style.borderColor = '#006d41';
+                document.getElementById('result-icon-bg').className = 'bg-benign text-white p-2 rounded shrink-0';
+                document.getElementById('result-icon').className = 'ph-bold ph-check text-2xl';
+                document.getElementById('result-title').className = 'text-benign font-black text-xl uppercase mb-1 tracking-tight';
+                document.getElementById('result-title').innerText = 'BENIGN PROFILE DETECTED';
+                document.getElementById('result-desc').className = 'text-benign font-medium text-sm';
+                document.getElementById('result-desc').innerText = 'Patient clinical parameters align with benign historical cases. Routine monitoring advised.';
+                document.getElementById('legend-label').innerText = 'BENIGN';
+            }
+
+            // Update Neighbors
+            [1,2,3].forEach((v, index) => {
+                const neighbor = data.neighbors[index];
+                document.getElementById(`n${v}-dist`).innerText = neighbor.distance.toFixed(3);
+                
+                const labelDiv = document.getElementById(`n${v}-label`);
+                if(neighbor.label === 1) {
+                    labelDiv.innerText = 'MALIGNANT CLASS';
+                    labelDiv.style.color = '#b81120';
+                    labelDiv.style.borderColor = '#b81120';
+                } else {
+                    labelDiv.innerText = 'BENIGN CLASS';
+                    labelDiv.style.color = '#006d41';
+                    labelDiv.style.borderColor = '#006d41';
+                }
+            });
+
+            // Update Chart
+            updateRadarChart(data.radar, isMalignant);
+        }
+
+        function updateRadarChart(radarData, isMalignant) {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            
+            if(chartInstance) {
+                chartInstance.destroy();
+            }
+
+            const primaryColor = isMalignant ? '#b81120' : '#006d41';
+            const primaryBg = isMalignant ? 'rgba(184, 17, 32, 0.2)' : 'rgba(0, 109, 65, 0.2)';
+
+            chartInstance = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['RADIUS', 'TEXTURE', 'AREA', 'CONCAVITY', 'SMOOTHNESS'],
+                    datasets: [
+                        {
+                            label: 'Current Patient',
+                            data: radarData.patient,
+                            backgroundColor: primaryBg,
+                            borderColor: primaryColor,
+                            pointBackgroundColor: primaryColor,
+                            borderWidth: 3,
+                            pointBorderColor: '#fff',
+                            pointHoverBackgroundColor: '#fff',
+                            pointHoverBorderColor: primaryColor
+                        },
+                        {
+                            label: 'Malignant Avg.',
+                            data: radarData.malignant_avg,
+                            backgroundColor: 'transparent',
+                            borderColor: '#dca6a4',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Benign Avg.',
+                            data: radarData.benign_avg,
+                            backgroundColor: 'rgba(203, 213, 225, 0.4)',
+                            borderColor: 'transparent',
+                            borderWidth: 0,
+                            pointRadius: 0,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        r: {
+                            angleLines: { color: '#e2e8f0' },
+                            grid: { color: '#e2e8f0' },
+                            pointLabels: {
+                                font: {
+                                    family: 'Inter',
+                                    size: 11,
+                                    weight: 'bold'
+                                },
+                                color: '#64748b'
+                            },
+                            ticks: { display: false },
+                            min: 0,
+                            max: 1
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initialize on load
+        initInterface();
+    </script>
+</body>
+</html>
