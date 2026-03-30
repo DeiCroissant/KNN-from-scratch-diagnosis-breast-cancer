@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
     <!-- Phosphor Icons or FontAwesome equivalent for free -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     
@@ -243,13 +244,15 @@
                     </button>
                     <div id="viz-content" class="hidden p-4 border-t border-cardOutline">
                         <div class="mb-4">
-                            <select id="chart-selector" onchange="switchChart()" class="p-2 border border-cardOutline rounded text-xs font-bold text-textMain focus:outline-none focus:border-primary w-full max-w-sm">
-                                <option value="scatter">KNN Space (2D): Radius vs Texture</option>
+                            <select id="chart-selector" onchange="switchChart()" class="p-2 border border-cardOutline rounded text-xs font-bold text-textMain focus:outline-none focus:border-primary w-full max-w-sm" style="appearance: auto;">
+                                <option value="pca">PCA Proximity Map (KNN 2D Space)</option>
+                                <option value="scatter">Basic Scatter: Radius vs Texture</option>
                                 <option value="bar">Feature Value Breakdown (Top 10 Mean Features)</option>
+                                <option value="heatmap">Feature Correlation Heatmap</option>
                             </select>
                         </div>
-                        <div class="relative h-[300px] w-full">
-                            <canvas id="extraChart"></canvas>
+                        <div class="relative w-full" id="chart-wrapper" style="height: 350px;">
+                            <!-- Charts dynamically injected here -->
                         </div>
                     </div>
                 </div>
@@ -270,6 +273,7 @@
         let extraChartInstance = null;
         let globalChartData = null;
         let lastPatientFeatures = null;
+        let lastPatientPCA = null;
 
         async function loadChartData() {
             try {
@@ -294,11 +298,59 @@
         }
 
         function switchChart() {
+            const wrapper = document.getElementById('chart-wrapper');
+            wrapper.innerHTML = '<canvas id="extraChart"></canvas>';
+            
             const type = document.getElementById('chart-selector').value;
             const ctx = document.getElementById('extraChart').getContext('2d');
             if(extraChartInstance) extraChartInstance.destroy();
             
-            if(type === 'scatter') {
+            if(type === 'pca') {
+                const datasets = [
+                    {
+                        label: 'Malignant (Historical)',
+                        data: globalChartData.pca.malignant,
+                        backgroundColor: 'rgba(184, 17, 32, 0.4)',
+                        borderColor: '#b81120',
+                        pointRadius: 4
+                    },
+                    {
+                        label: 'Benign (Historical)',
+                        data: globalChartData.pca.benign,
+                        backgroundColor: 'rgba(0, 109, 65, 0.4)',
+                        borderColor: '#006d41',
+                        pointRadius: 4
+                    }
+                ];
+
+                if(lastPatientPCA) {
+                    datasets.push({
+                        label: 'Current Patient',
+                        data: [{x: lastPatientPCA[0], y: lastPatientPCA[1]}],
+                        backgroundColor: '#ffc107',
+                        borderColor: '#333',
+                        pointRadius: 10,
+                        pointHoverRadius: 12,
+                        pointStyle: 'star'
+                    });
+                }
+
+                extraChartInstance = new Chart(ctx, {
+                    type: 'scatter',
+                    data: { datasets },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { 
+                            legend: { position: 'bottom' },
+                            tooltip: { callbacks: { label: (ctx) => `PCA1: ${ctx.parsed.x.toFixed(2)}, PCA2: ${ctx.parsed.y.toFixed(2)}` } }
+                        },
+                        scales: {
+                            x: { title: { display: true, text: 'Principal Component 1 (PCA 1)' } },
+                            y: { title: { display: true, text: 'Principal Component 2 (PCA 2)' } }
+                        }
+                    }
+                });
+            } else if(type === 'scatter') {
                 const datasets = [
                     {
                         label: 'Malignant (Historical)',
@@ -322,8 +374,8 @@
                         data: [{x: lastPatientFeatures[0], y: lastPatientFeatures[1]}],
                         backgroundColor: '#ffc107',
                         borderColor: '#333',
-                        pointRadius: 8,
-                        pointHoverRadius: 10,
+                        pointRadius: 10,
+                        pointHoverRadius: 12,
                         pointStyle: 'star'
                     });
                 }
@@ -366,6 +418,51 @@
                     options: {
                         responsive: true, maintainAspectRatio: false,
                         plugins: { legend: { position: 'bottom' } }
+                    }
+                });
+            } else if (type === 'heatmap') {
+                const hm_labels = [...featureNames.slice(0, 10), 'Diagnosis'];
+                const dataPoints = [];
+                const len = hm_labels.length;
+                
+                for(let i=0; i<len; i++) {
+                    for(let j=0; j<len; j++) {
+                        dataPoints.push({
+                            x: hm_labels[i],
+                            y: hm_labels[j],
+                            v: globalChartData.corr[i][j]
+                        });
+                    }
+                }
+
+                extraChartInstance = new Chart(ctx, {
+                    type: 'matrix',
+                    data: {
+                        datasets: [{
+                            label: 'Correlation',
+                            data: dataPoints,
+                            backgroundColor(context) {
+                                const value = context.dataset.data[context.dataIndex].v;
+                                if(value > 0) {
+                                    return `rgba(184, 17, 32, ${value})`; // Red for positive corr
+                                } else {
+                                    return `rgba(0, 109, 65, ${Math.abs(value)})`; // Green for negative corr
+                                }
+                            },
+                            width: ({chart}) => (chart.chartArea || {}).width / hm_labels.length - 1,
+                            height: ({chart}) => (chart.chartArea || {}).height / hm_labels.length - 1
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { 
+                            legend: { display: false },
+                            tooltip: { callbacks: { label: (ctx) => `Corr: ${ctx.raw.v.toFixed(3)}` } }
+                        },
+                        scales: {
+                            x: { type: 'category', labels: hm_labels, ticks: {font: {size: 9}, maxRotation: 45, minRotation: 45} },
+                            y: { type: 'category', labels: hm_labels, ticks: {font: {size: 9}} }
+                        }
                     }
                 });
             }
@@ -482,6 +579,7 @@
 
         function updateUI(data) {
             lastPatientFeatures = getFeatures();
+            lastPatientPCA = data.patient_pca;
             if(!document.getElementById('viz-content').classList.contains('hidden')) {
                 switchChart();
             }

@@ -2,6 +2,7 @@ import os
 import sys
 import numpy as np
 from flask import Flask, render_template, request, jsonify
+from sklearn.decomposition import PCA
 
 # Import existing backend
 from data_loader import load_data, min_max_scaler
@@ -15,11 +16,13 @@ X_scaled = None
 min_vals, max_vals = None, None
 model = None
 m_avg_scaled, b_avg_scaled = None, None
+pca_model = None
+X_pca = None
+corr_matrix = None
 
 def init_system():
-    global X_raw, y, X_scaled, min_vals, max_vals, model, m_avg_scaled, b_avg_scaled
+    global X_raw, y, X_scaled, min_vals, max_vals, model, m_avg_scaled, b_avg_scaled, pca_model, X_pca, corr_matrix
     try:
-        # Load from root directory
         data_path = os.path.join(os.path.dirname(__file__), '..', 'data.csv')
         X_raw, y = load_data(data_path)
         min_vals = np.min(X_raw, axis=0)
@@ -31,6 +34,16 @@ def init_system():
         
         m_avg_scaled = (np.mean(X_raw[y == 1], axis=0) - min_vals) / (max_vals - min_vals + 1e-9)
         b_avg_scaled = (np.mean(X_raw[y == 0], axis=0) - min_vals) / (max_vals - min_vals + 1e-9)
+        
+        # PCA preparation
+        pca_model = PCA(n_components=2)
+        X_pca = pca_model.fit_transform(X_scaled)
+
+        # Correlation computation
+        y_col = y.reshape(-1, 1)
+        full_data = np.hstack((X_scaled, y_col))
+        corr_matrix = np.corrcoef(full_data, rowvar=False)
+
         print("System Initialized successfully!")
     except Exception as e:
         print(f"Error initializing: {e}")
@@ -42,12 +55,22 @@ def chart_data():
     malignant_points = [{'x': float(X_raw[i, 0]), 'y': float(X_raw[i, 1])} for i in range(len(y)) if y[i] == 1]
     benign_points = [{'x': float(X_raw[i, 0]), 'y': float(X_raw[i, 1])} for i in range(len(y)) if y[i] == 0]
     
+    # PCA Points
+    pca_malignant = [{'x': float(X_pca[i, 0]), 'y': float(X_pca[i, 1])} for i in range(len(y)) if y[i] == 1]
+    pca_benign = [{'x': float(X_pca[i, 0]), 'y': float(X_pca[i, 1])} for i in range(len(y)) if y[i] == 0]
+
+    # Correlation Matrix (Top 10 features for simplicity in visualization + 1 Target)
+    idx = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 30] # 10 means + y
+    small_corr = corr_matrix[np.ix_(idx, idx)].tolist()
+    
     m_avg_mean = np.mean(X_raw[y == 1][:, :10], axis=0).tolist()
     b_avg_mean = np.mean(X_raw[y == 0][:, :10], axis=0).tolist()
     
     return jsonify({
         'scatter': { 'malignant': malignant_points, 'benign': benign_points },
-        'bar': { 'malignant': m_avg_mean, 'benign': b_avg_mean }
+        'bar': { 'malignant': m_avg_mean, 'benign': b_avg_mean },
+        'pca': { 'malignant': pca_malignant, 'benign': pca_benign },
+        'corr': small_corr
     })
 
 @app.route('/')
@@ -87,6 +110,9 @@ def predict():
     distances = np.sqrt(np.sum((X_scaled - patient_scaled) ** 2, axis=1))
     k_indices = np.argsort(distances)[:3]
     
+    # Calculate patient PCA position
+    patient_pca = pca_model.transform(patient_scaled.reshape(1, -1))[0]
+    
     neighbors = []
     for i in k_indices:
         neighbors.append({
@@ -101,6 +127,7 @@ def predict():
             'malignant_avg': radar_m_avg,
             'benign_avg': radar_b_avg
         },
+        'patient_pca': [float(patient_pca[0]), float(patient_pca[1])],
         'neighbors': neighbors
     })
 
