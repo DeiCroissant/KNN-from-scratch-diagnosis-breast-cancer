@@ -98,17 +98,32 @@ def predict():
     patient_scaled = (features - min_vals) / (max_vals - min_vals + 1e-9)
     
     # Predict
-    prediction = int(model.predict(patient_scaled.reshape(1, -1))[0])
+    preds, k_indices_list = model.predict(patient_scaled.reshape(1, -1))
+    prediction = int(preds[0])
+    k_indices = k_indices_list[0]
+    
+    # Local XAI logic
+    # Filter the K-nearest neighbors from training data (scaled data for radar consistency)
+    knn_neighbors_scaled = X_scaled[k_indices]
+    knn_neighbors_labels = y[k_indices]
+    
+    # Calculate Malignant and Benign Local Averages (from neighbors only)
+    m_neighbors = knn_neighbors_scaled[knn_neighbors_labels == 1]
+    b_neighbors = knn_neighbors_scaled[knn_neighbors_labels == 0]
+    
+    m_avg_local = np.mean(m_neighbors, axis=0) if len(m_neighbors) > 0 else np.zeros_like(features)
+    b_avg_local = np.mean(b_neighbors, axis=0) if len(b_neighbors) > 0 else np.zeros_like(features)
     
     # Radar chart data: Radius(0), Texture(1), Area(3), Concavity(6), Smoothness(4)
     idx = [0, 1, 3, 6, 4]
     radar_patient = patient_scaled[idx].tolist()
-    radar_m_avg = m_avg_scaled[idx].tolist()
-    radar_b_avg = b_avg_scaled[idx].tolist()
     
-    # Neighbors
+    # Update to Local XAI averages
+    radar_m_avg = m_avg_local[idx].tolist()
+    radar_b_avg = b_avg_local[idx].tolist()
+    
+    # Distances
     distances = np.sqrt(np.sum((X_scaled - patient_scaled) ** 2, axis=1))
-    k_indices = np.argsort(distances)[:3]
     
     # Calculate patient PCA position
     patient_pca = pca_model.transform(patient_scaled.reshape(1, -1))[0]

@@ -2,7 +2,7 @@ import numpy as np
 from collections import Counter
 
 class KNN_Classifier:
-    def __init__(self, k=3):
+    def __init__(self, k=5):
         """
         Khởi tạo mô hình KNN.
         k: số lượng láng giềng gần nhất cần xét.
@@ -32,8 +32,10 @@ class KNN_Classifier:
         Dự đoán nhãn cho một tập dữ liệu test.
         """
         # Áp dụng hàm _predict_one cho từng dòng dữ liệu trong X_test
-        predictions = [self._predict_one(x) for x in X_test]
-        return np.array(predictions)
+        results = [self._predict_one(x) for x in X_test]
+        predictions = [r[0] for r in results]
+        k_indices_list = [r[1] for r in results]
+        return np.array(predictions), k_indices_list
 
     def _predict_one(self, x):
         """
@@ -51,4 +53,4 @@ class KNN_Classifier:
         # 4. Bầu cử theo số đông (Majority vote)
         most_common = Counter(k_nearest_labels).most_common(1)
         
-        return most_common[0][0]
+        return most_common[0][0], k_indices
