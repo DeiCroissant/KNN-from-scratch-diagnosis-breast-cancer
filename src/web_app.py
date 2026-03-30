@@ -1,5 +1,10 @@
 import os
 import sys
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.append(current_dir)
+
 import numpy as np
 from flask import Flask, render_template, request, jsonify
 from sklearn.decomposition import PCA
@@ -9,9 +14,7 @@ from data_loader import load_data, min_max_scaler, train_test_split
 from knn_model import KNN_Classifier
 from main import calculate_metrics
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
-
 template_dir = os.path.join(root_dir, 'templates')
 app = Flask(__name__, template_folder=template_dir)
 
