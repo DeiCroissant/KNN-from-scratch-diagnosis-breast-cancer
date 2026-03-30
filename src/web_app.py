@@ -29,7 +29,7 @@ global_metrics = None
 def init_system():
     global X_raw, y, X_scaled, min_vals, max_vals, model, m_avg_scaled, b_avg_scaled, pca_model, X_pca, corr_matrix, global_metrics
     try:
-        data_path = os.path.join(os.path.dirname(__file__), '..', 'data.csv')
+        data_path = os.path.join(root_dir, 'data.csv')
         X_raw, y = load_data(data_path)
         min_vals = np.min(X_raw, axis=0)
         max_vals = np.max(X_raw, axis=0)
