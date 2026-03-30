@@ -37,6 +37,19 @@ def init_system():
 
 init_system()
 
+@app.route('/chart_data', methods=['GET'])
+def chart_data():
+    malignant_points = [{'x': float(X_raw[i, 0]), 'y': float(X_raw[i, 1])} for i in range(len(y)) if y[i] == 1]
+    benign_points = [{'x': float(X_raw[i, 0]), 'y': float(X_raw[i, 1])} for i in range(len(y)) if y[i] == 0]
+    
+    m_avg_mean = np.mean(X_raw[y == 1][:, :10], axis=0).tolist()
+    b_avg_mean = np.mean(X_raw[y == 0][:, :10], axis=0).tolist()
+    
+    return jsonify({
+        'scatter': { 'malignant': malignant_points, 'benign': benign_points },
+        'bar': { 'malignant': m_avg_mean, 'benign': b_avg_mean }
+    })
+
 @app.route('/')
 def index():
     feature_names = ["Radius", "Texture", "Perimeter", "Area", "Smoothness", "Compactness", "Concavity", "Concave Points", "Symmetry", "Fractal Dim"]

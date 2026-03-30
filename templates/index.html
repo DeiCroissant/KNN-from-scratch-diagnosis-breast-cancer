@@ -89,40 +89,51 @@
 
         <!-- Scrollable Sliders -->
         <div class="flex-1 overflow-y-auto scroll-hidden p-4" id="indicators-container">
+            <!-- Randomize Button -->
+            <button onclick="randomizeData()" class="w-full mb-4 bg-white border border-cardOutline hover:bg-gray-50 transition text-textMain font-bold py-2 rounded text-xs tracking-wide shadow-sm flex items-center justify-center gap-2">
+                <i class="ph ph-dice-three text-lg"></i> AUTO GENERATE PATIENT
+            </button>
+
             <!-- Mean Indicators Accordion -->
             <div class="mb-4">
-                <button class="w-full flex items-center justify-between text-xs font-bold text-primary bg-[#f4e2e3] px-3 py-2 rounded-t border-l-4 border-primary">
+                <button onclick="toggleAccordion('mean')" id="btn-mean" class="w-full flex items-center justify-between text-xs font-bold text-primary bg-[#f4e2e3] px-3 py-2 rounded-t border-l-4 border-primary transition">
                     <div class="flex items-center gap-2">
                         <i class="ph ph-chart-bar text-lg"></i>
                         <span>MEAN INDICATORS</span>
                     </div>
-                    <i class="ph ph-caret-down"></i>
+                    <i class="ph ph-caret-down transition-transform" id="icon-mean"></i>
                 </button>
-                <div class="bg-white border text-xs text-textMuted border-cardOutline border-t-0 rounded-b p-4 space-y-5" id="mean-sliders">
+                <div class="bg-white border text-xs text-textMuted border-cardOutline border-t-0 rounded-b p-4 space-y-5 block" id="mean-sliders">
                     <!-- Sliders injected by JS -->
                 </div>
             </div>
 
             <!-- SE Indicators -->
             <div class="mb-4">
-                <button class="w-full flex items-center justify-between text-xs font-bold text-textMain px-3 py-2 border-b border-cardOutline hover:bg-gray-100 transition">
+                <button onclick="toggleAccordion('se')" id="btn-se" class="w-full flex items-center justify-between text-xs font-bold text-textMain bg-white px-3 py-2 border border-cardOutline rounded hover:bg-gray-50 transition">
                     <div class="flex items-center gap-2">
                         <i class="ph ph-activity text-lg"></i>
                         <span>SE INDICATORS</span>
                     </div>
-                    <i class="ph ph-caret-right"></i>
+                    <i class="ph ph-caret-right transition-transform" id="icon-se"></i>
                 </button>
+                <div class="bg-white border text-xs text-textMuted border-cardOutline border-t-0 rounded-b p-4 space-y-5 hidden" id="se-sliders">
+                    <!-- Sliders injected by JS -->
+                </div>
             </div>
 
             <!-- Worst Indicators -->
             <div class="mb-4">
-                <button class="w-full flex items-center justify-between text-xs font-bold text-textMain px-3 py-2 border-b border-cardOutline hover:bg-gray-100 transition">
+                <button onclick="toggleAccordion('worst')" id="btn-worst" class="w-full flex items-center justify-between text-xs font-bold text-textMain bg-white px-3 py-2 border border-cardOutline rounded hover:bg-gray-50 transition">
                     <div class="flex items-center gap-2">
                         <i class="ph ph-warning text-lg"></i>
                         <span>WORST INDICATORS</span>
                     </div>
-                    <i class="ph ph-caret-right"></i>
+                    <i class="ph ph-caret-right transition-transform" id="icon-worst"></i>
                 </button>
+                <div class="bg-white border text-xs text-textMuted border-cardOutline border-t-0 rounded-b p-4 space-y-5 hidden" id="worst-sliders">
+                    <!-- Sliders injected by JS -->
+                </div>
             </div>
         </div>
 
@@ -220,6 +231,28 @@
                         <div id="n3-label" class="mt-3 text-xs font-bold pl-2 border-l-2"></div>
                     </div>
                 </div>
+
+                <!-- Advanced Data Visualizations Accordion -->
+                <div class="mt-6 border border-cardOutline bg-white rounded shadow-sm">
+                    <button onclick="toggleViz()" class="w-full flex items-center justify-between p-4 font-bold text-sm text-textMain hover:bg-gray-50 transition rounded">
+                        <div class="flex items-center gap-2">
+                            <i class="ph ph-presentation-chart text-xl text-primary"></i>
+                            <span>ADVANCED DATA VISUALIZATIONS</span>
+                        </div>
+                        <i class="ph ph-caret-down transition-transform" id="viz-icon"></i>
+                    </button>
+                    <div id="viz-content" class="hidden p-4 border-t border-cardOutline">
+                        <div class="mb-4">
+                            <select id="chart-selector" onchange="switchChart()" class="p-2 border border-cardOutline rounded text-xs font-bold text-textMain focus:outline-none focus:border-primary w-full max-w-sm">
+                                <option value="scatter">KNN Space (2D): Radius vs Texture</option>
+                                <option value="bar">Feature Value Breakdown (Top 10 Mean Features)</option>
+                            </select>
+                        </div>
+                        <div class="relative h-[300px] w-full">
+                            <canvas id="extraChart"></canvas>
+                        </div>
+                    </div>
+                </div>
                 
             </div>
 
@@ -234,36 +267,193 @@
         const defaultVals = {{ default_vals | safe }};
         
         let chartInstance = null;
+        let extraChartInstance = null;
+        let globalChartData = null;
+        let lastPatientFeatures = null;
 
-        // Populate sliders (Only doing the first 5 "Mean" ones for exact match visually, but underlying we'll send all 30)
-        // Or we show first 5 features but keep all 30 sliders conceptually (will just build Mean for the demo UI)
+        async function loadChartData() {
+            try {
+                const res = await fetch('/chart_data');
+                globalChartData = await res.json();
+            } catch(e) {
+                console.error("Fetch chart data failed", e);
+            }
+        }
+
+        function toggleViz() {
+            const content = document.getElementById('viz-content');
+            const icon = document.getElementById('viz-icon');
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                icon.classList.replace('ph-caret-down', 'ph-caret-up');
+                if(!extraChartInstance && globalChartData) switchChart();
+            } else {
+                content.classList.add('hidden');
+                icon.classList.replace('ph-caret-up', 'ph-caret-down');
+            }
+        }
+
+        function switchChart() {
+            const type = document.getElementById('chart-selector').value;
+            const ctx = document.getElementById('extraChart').getContext('2d');
+            if(extraChartInstance) extraChartInstance.destroy();
+            
+            if(type === 'scatter') {
+                const datasets = [
+                    {
+                        label: 'Malignant (Historical)',
+                        data: globalChartData.scatter.malignant,
+                        backgroundColor: 'rgba(184, 17, 32, 0.4)',
+                        borderColor: '#b81120',
+                        pointRadius: 4
+                    },
+                    {
+                        label: 'Benign (Historical)',
+                        data: globalChartData.scatter.benign,
+                        backgroundColor: 'rgba(0, 109, 65, 0.4)',
+                        borderColor: '#006d41',
+                        pointRadius: 4
+                    }
+                ];
+
+                if(lastPatientFeatures) {
+                    datasets.push({
+                        label: 'Current Patient',
+                        data: [{x: lastPatientFeatures[0], y: lastPatientFeatures[1]}],
+                        backgroundColor: '#ffc107',
+                        borderColor: '#333',
+                        pointRadius: 8,
+                        pointHoverRadius: 10,
+                        pointStyle: 'star'
+                    });
+                }
+
+                extraChartInstance = new Chart(ctx, {
+                    type: 'scatter',
+                    data: { datasets },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom' } },
+                        scales: {
+                            x: { title: { display: true, text: 'Radius Mean' } },
+                            y: { title: { display: true, text: 'Texture Mean' } }
+                        }
+                    }
+                });
+            } else if (type === 'bar') {
+                const labels = featureNames.slice(0, 10).map(f => f + ' Mean');
+                const datasets = [];
+                if (lastPatientFeatures) {
+                    datasets.push({
+                        label: 'Current Patient',
+                        data: lastPatientFeatures.slice(0, 10),
+                        backgroundColor: '#1e293b'
+                    });
+                }
+                datasets.push({
+                    label: 'Malignant Avg',
+                    data: globalChartData.bar.malignant,
+                    backgroundColor: '#b81120'
+                }, {
+                    label: 'Benign Avg',
+                    data: globalChartData.bar.benign,
+                    backgroundColor: '#cbd5e1'
+                });
+
+                extraChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: { labels, datasets },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom' } }
+                    }
+                });
+            }
+        }
+
         function initInterface() {
-            const container = document.getElementById('mean-sliders');
-            // Show only first 5 for the UI presentation to match image exactly (Radius, Texture, Perimeter, Area, Smoothness)
-            for(let i = 0; i < 5; i++) {
+            loadChartData();
+            const meanContainer = document.getElementById('mean-sliders');
+            const seContainer = document.getElementById('se-sliders');
+            const worstContainer = document.getElementById('worst-sliders');
+            
+            for(let i = 0; i < 30; i++) {
                 const step = (maxVals[i] - minVals[i]) / 100;
+                let groupName = "";
+                let baseNameIndex = i % 10;
+                let container = null;
+                
+                if(i < 10) {
+                    groupName = "MEAN";
+                    container = meanContainer;
+                } else if(i < 20) {
+                    groupName = "SE";
+                    container = seContainer;
+                } else {
+                    groupName = "WORST";
+                    container = worstContainer;
+                }
+
                 const html = `
                     <div class="slider-group">
-                        <label class="block uppercase font-bold tracking-wider mb-1">${featureNames[i]} MEAN</label>
-                        <input type="range" id="feat-${i}" class="custom-slider" 
-                               min="${minVals[i]}" max="${maxVals[i]}" step="${step}" value="${defaultVals[i]}">
+                        <div class="flex justify-between items-end mb-1">
+                            <label class="block uppercase font-bold tracking-wider">${featureNames[baseNameIndex]} ${groupName}</label>
+                            <span class="text-[10px] font-mono text-primary font-bold" id="val-${i}">${parseFloat(defaultVals[i]).toFixed(3)}</span>
+                        </div>
+                        <input type="range" id="feat-${i}" class="custom-slider"
+                               min="${minVals[i]}" max="${maxVals[i]}" step="${step}" value="${defaultVals[i]}"
+                               oninput="document.getElementById('val-${i}').innerText = parseFloat(this.value).toFixed(3)">
                     </div>
                 `;
                 container.insertAdjacentHTML('beforeend', html);
             }
         }
 
-        // Gather all 30 features (we will fake the ones not shown using the defaults to keep the model working)
         function getFeatures() {
-            let features = [...defaultVals];
-            // Override first 5 with slider values
-            for(let i=0; i<5; i++) {
+            let features = [];
+            for(let i=0; i<30; i++) {
                 let el = document.getElementById(`feat-${i}`);
-                if(el) {
-                    features[i] = parseFloat(el.value);
-                }
+                features.push(el ? parseFloat(el.value) : defaultVals[i]);
             }
             return features;
+        }
+
+        function toggleAccordion(id) {
+            const sections = ['mean', 'se', 'worst'];
+            
+            sections.forEach(sec => {
+                const btn = document.getElementById(`btn-${sec}`);
+                const content = document.getElementById(`${sec}-sliders`);
+                const icon = document.getElementById(`icon-${sec}`);
+                
+                if (sec === id) {
+                    const isHidden = content.classList.contains('hidden');
+                    if (isHidden) {
+                        content.classList.remove('hidden');
+                        btn.className = "w-full flex items-center justify-between text-xs font-bold text-primary bg-[#f4e2e3] px-3 py-2 rounded-t border-l-4 border-primary transition";
+                        icon.className = "ph ph-caret-down transition-transform";
+                    } else {
+                        content.classList.add('hidden');
+                        btn.className = "w-full flex items-center justify-between text-xs font-bold text-textMain bg-white px-3 py-2 border border-cardOutline rounded hover:bg-gray-50 transition";
+                        icon.className = "ph ph-caret-right transition-transform";
+                    }
+                } else {
+                    content.classList.add('hidden');
+                    btn.className = "w-full flex items-center justify-between text-xs font-bold text-textMain bg-white px-3 py-2 border border-cardOutline rounded hover:bg-gray-50 transition";
+                    icon.className = "ph ph-caret-right transition-transform";
+                }
+            });
+        }
+
+        function randomizeData() {
+            for(let i=0; i<30; i++) {
+                let r = minVals[i] + Math.random() * (maxVals[i] - minVals[i]);
+                let el = document.getElementById(`feat-${i}`);
+                if (el) {
+                    el.value = r;
+                    document.getElementById(`val-${i}`).innerText = r.toFixed(3);
+                }
+            }
         }
 
         async function predict() {
@@ -291,6 +481,11 @@
         }
 
         function updateUI(data) {
+            lastPatientFeatures = getFeatures();
+            if(!document.getElementById('viz-content').classList.contains('hidden')) {
+                switchChart();
+            }
+
             document.getElementById('placeholder').classList.add('hidden');
             document.getElementById('dashboard-content').classList.remove('hidden');
             const banner = document.getElementById('result-banner');
